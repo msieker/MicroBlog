@@ -5,8 +5,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 
 namespace MicroBlog.Controllers
-{
-    [Route("")]
+{    
     public class HomeController : Controller
     {
         private readonly IPostRepository _postRepository;
@@ -16,7 +15,7 @@ namespace MicroBlog.Controllers
             _postRepository = postRepository;
         }
 
-        [Route("")]
+ 
         public IActionResult Index()
         {
             return View(_postRepository.AllPosts);
