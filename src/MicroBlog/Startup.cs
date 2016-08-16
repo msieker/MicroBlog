@@ -63,8 +63,7 @@ namespace MicroBlog
             app.UseDeveloperExceptionPage();
             if (env.IsDevelopment())
             {
-                
-                app.UseBrowserLink();
+               
                                 
             }
             else

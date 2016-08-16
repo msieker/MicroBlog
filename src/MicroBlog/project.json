@@ -38,19 +38,13 @@
     "emitEntryPoint": true,
     "preserveCompilationContext": true
   },
-
-  "runtimeOptions": {
-    "configProperties": {
-      "System.GC.Server": true
-    }
-  },
-
   "publishOptions": {
     "include": [
       "wwwroot",
       "Views",
       "Areas/**/Views",
       "appsettings.json",
+      "appsettings.production.json",
       "web.config",
       "nlog.config"
     ]
