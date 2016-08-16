@@ -1,0 +1,6 @@
+﻿@model IEnumerable<Post>
+
+@foreach (var p in Model)
+{
+    @await Component.InvokeAsync("Post", new { Post = p, ShowComments = false })
+}

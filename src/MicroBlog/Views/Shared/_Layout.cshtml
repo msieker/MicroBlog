@@ -1,0 +1,45 @@
+﻿@inject IOptions<Settings> settings
+@inject IPostRepository PostRepository
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@settings.Value.BlogTitle</title>
+
+    <environment names="Development">
+
+        <link href="~/css/site.css" rel="stylesheet" />
+        <link href="~/lib/pure/pure-min.css" rel="stylesheet"/>
+    </environment>
+    <environment names="Staging,Production">
+        <link href="~/css/site.min.css" rel="stylesheet" />
+    </environment>
+</head>
+<body>
+    <header>
+        <h1>@settings.Value.BlogTitle</h1>
+        <div class="pure-menu-horizontal">
+            <ul class="pure-menu-list">
+                @foreach (var c in PostRepository.Categories())
+            {
+                    <li class="pure-menu-item">@c</li>
+                }
+            </ul>
+        </div>
+
+    </header>
+    @RenderBody()
+
+
+    <environment names="Development">
+
+    </environment>
+    <environment names="Staging,Production">
+
+    </environment>
+
+    <script id="dsq-count-scr" src="//@(settings.Value.DisqusShortName).disqus.com/count.js" async></script>
+    @RenderSection("scripts", required: false)
+</body>
+</html>

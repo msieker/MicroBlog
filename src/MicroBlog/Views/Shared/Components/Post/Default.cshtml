@@ -1,0 +1,38 @@
+﻿@model MicroBlog.Components.PostViewComponentModel
+@inject IOptions<Settings> settings
+<article>
+    <header>
+        <h2>
+            <a asp-controller="Post" asp-action="ViewPost" asp-route-slug="@Model.Post.Slug">@Model.Post.Title</a>
+        </h2>
+        Posted on <time datetime="@Model.Post.Date.ToString("o")">@Model.Post.Date.LocalDateTime</time>
+    </header>
+    <section>
+        @Html.Raw(Model.Post.Html)
+    </section>
+    <footer>
+        @if (Model.ShowComments)
+        {
+            <div id="disqus_thread"></div>
+            <script>
+
+                var disqus_config = function () {
+                    this.page.url = '@(Url.Action("ViewPost", "Post",new {Slug=Model.Post.Slug},"https"))';
+                    this.page.identifier = '@(Model.Post.Slug)';
+                };
+
+                (function () { // DON'T EDIT BELOW THIS LINE
+                    var d = document, s = d.createElement('script');
+                    s.src = '//@(settings.Value.DisqusShortName).disqus.com/embed.js';
+                    s.setAttribute('data-timestamp', +new Date());
+                    (d.head || d.body).appendChild(s);
+                })();
+            </script>
+            <noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+        }
+        else
+        {
+            <a href="@(Url.Action("ViewPost","Post",new {Slug=Model.Post.Slug}))#disqus_thread" data-disqus-identifier="@Model.Post.Slug"></a>
+        }
+    </footer>
+</article>
