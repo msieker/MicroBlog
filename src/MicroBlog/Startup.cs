@@ -60,10 +60,10 @@ namespace MicroBlog
         {
             loggerFactory.AddNLog();
             env.ConfigureNLog("nlog.config");
-            
+            app.UseDeveloperExceptionPage();
             if (env.IsDevelopment())
             {
-                app.UseDeveloperExceptionPage();
+                
                 app.UseBrowserLink();
                                 
             }
