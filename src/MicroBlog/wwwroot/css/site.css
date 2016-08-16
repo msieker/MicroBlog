@@ -1,13 +1,13 @@
 ﻿body {
-    padding-top: 50px;
-    padding-bottom: 20px;
+    padding-top: 1em;
 }
 
 /* Wrapping element */
 /* Set some basic padding to keep content from hitting the edges */
 .body-content {
-    padding-left: 15px;
-    padding-right: 15px;
+    margin-left: auto;
+    margin-right: auto;
+    width: 60em;
 }
 
 /* Set widths on the form inputs since otherwise they're 100% wide */
@@ -35,4 +35,10 @@ textarea {
   .carousel-caption {
     display: none
   }
+}
+
+.top-menu li {
+    width: 8em;
+    text-align: center;
+
 }
