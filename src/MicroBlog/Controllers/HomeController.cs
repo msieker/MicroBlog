@@ -1,6 +1,8 @@
 ﻿using System;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
+
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.Caching.Memory;
@@ -21,18 +23,16 @@ namespace MicroBlog.Controllers
         }
 
         [Route("media/{*mediaPath}")]
-        public IActionResult Media(string mediaPath)
+        public async Task<IActionResult> Media(string mediaPath)
         {
             byte[] content;
             if (!_cache.TryGetValue("media-" + mediaPath, out content))
             {
-                using(var stream =  _postRepository.GetMedia(mediaPath))
-                using (MemoryStream ms = new MemoryStream())
+                content = await _postRepository.GetMedia(mediaPath);
+                if (content == null)
                 {
-                    stream.CopyTo(ms);
-                    content = ms.ToArray();
-                }                
-                
+                    return NotFound();
+                }
             }
             string contentType;
             new FileExtensionContentTypeProvider().TryGetContentType(mediaPath, out contentType);

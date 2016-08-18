@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading.Tasks;
 
 using Dropbox.Api;
+using Dropbox.Api.Files;
 
 using Microsoft.Extensions.Options;
 
@@ -15,6 +16,7 @@ namespace MicroBlog
 {
     public interface IPostRepository
     {
+        Task Refresh();
         Post GetBySlug(string slug);
         Post GetDraftBySlug(string slug);
 
@@ -23,13 +25,15 @@ namespace MicroBlog
         IEnumerable<Post> AllPosts { get; }
         IEnumerable<Post> Drafts { get; }
 
-        Stream GetMedia(string path);
+        Task<byte[]> GetMedia(string path);
     }
 
     public abstract class PostRepositoryBase : IPostRepository
     {
         public abstract IEnumerable<Post> AllPosts { get; }
         public abstract IEnumerable<Post> Drafts { get; }
+
+        public abstract Task Refresh();
 
         public Post GetBySlug(string slug)
         {
@@ -41,7 +45,7 @@ namespace MicroBlog
             return Drafts.FirstOrDefault(s => s.Slug.Equals(slug, StringComparison.OrdinalIgnoreCase));
         }
 
-        public abstract Stream GetMedia(string path);
+        public abstract Task<byte[]> GetMedia(string path);
 
         public IEnumerable<string> Categories()
         {
@@ -89,9 +93,24 @@ namespace MicroBlog
             }
         }
 
-        public override Stream GetMedia(string path)
+        public override async Task Refresh()
         {
             throw new NotImplementedException();
+        }
+
+        public override async Task<byte[]> GetMedia(string path)
+        {
+            try
+            {
+                var file = await _client.Files.DownloadAsync("/media/" + path);
+                var contents = await file.GetContentAsByteArrayAsync();
+
+                return contents;
+            }
+            catch (ApiException<DownloadError> ex)
+            {
+                return null;
+            }
         }
 
         public override IEnumerable<Post> AllPosts
@@ -107,7 +126,7 @@ namespace MicroBlog
     {
         private readonly Settings _settings;
         private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
-        private readonly new ConcurrentDictionary<string, Post> _posts;
+        private readonly ConcurrentDictionary<string, Post> _posts;
 
         public LocalPostRepository(IOptions<Settings> settings)
         {
@@ -125,7 +144,7 @@ namespace MicroBlog
             {
                 Logger.Info($"File deleted: {args.FullPath}");
                 Post oldPost;
-                _posts.TryRemove(args.FullPath, out oldPost);                
+                _posts.TryRemove(args.FullPath, out oldPost);
             };
 
             watcher.Created += (sender, args) =>
@@ -157,11 +176,23 @@ namespace MicroBlog
 
         public override IEnumerable<Post> Drafts { get { return _posts.Values.Where(p => p.IsDraft).OrderByDescending(p => p.Date); } }
 
-        public override Stream GetMedia(string path)
+        public override Task Refresh()
+        {
+            _posts.Clear();
+            ScanPosts();
+            return Task.CompletedTask;
+        }
+
+        public override async Task<byte[]> GetMedia(string path)
         {
             try
             {
-                return File.Open(Path.Combine(_settings.ContentPath,"media", path), FileMode.Open, FileAccess.Read);
+                using (var ms = new MemoryStream())
+                using (var f = File.Open(Path.Combine(_settings.ContentPath, "media", path), FileMode.Open, FileAccess.Read))
+                {
+                    await f.CopyToAsync(ms);
+                    return ms.ToArray();
+                }
             }
             catch (Exception ex)
             {
