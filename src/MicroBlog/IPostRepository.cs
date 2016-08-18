@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -16,26 +17,48 @@ namespace MicroBlog
     {
         Post GetBySlug(string slug);
         Post GetDraftBySlug(string slug);
-        Post GetByFileName(string fileName);
 
         IEnumerable<string> Categories();
-        IEnumerable<Post> AllPosts { get; }
 
-        void AddOrUpdatePost(Post post);
+        IEnumerable<Post> AllPosts { get; }
+        IEnumerable<Post> Drafts { get; }
+
+        Stream GetMedia(string path);
     }
 
-    public class DropboxPostRepository : IPostRepository
+    public abstract class PostRepositoryBase : IPostRepository
+    {
+        public abstract IEnumerable<Post> AllPosts { get; }
+        public abstract IEnumerable<Post> Drafts { get; }
+
+        public Post GetBySlug(string slug)
+        {
+            return AllPosts.FirstOrDefault(s => s.Slug.Equals(slug, StringComparison.OrdinalIgnoreCase));
+        }
+
+        public Post GetDraftBySlug(string slug)
+        {
+            return Drafts.FirstOrDefault(s => s.Slug.Equals(slug, StringComparison.OrdinalIgnoreCase));
+        }
+
+        public abstract Stream GetMedia(string path);
+
+        public IEnumerable<string> Categories()
+        {
+            return AllPosts.Select(c => c.Category).Distinct().OrderBy(c => c);
+        }
+    }
+
+    public class DropboxPostRepository : PostRepositoryBase
     {
         private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
-        private readonly IList<Post> _posts;
-        private DropboxSettings _dropboxSettings;
-        private DropboxClient _client;
+        private readonly ConcurrentBag<Post> _posts;
+        private readonly DropboxClient _client;
 
         public DropboxPostRepository(IOptions<DropboxSettings> dropboxSettings)
         {
-            _posts = new List<Post>();
-            _dropboxSettings = dropboxSettings.Value;
-            _client = new DropboxClient(_dropboxSettings.AccessToken);
+            _posts = new ConcurrentBag<Post>();
+            _client = new DropboxClient(dropboxSettings.Value.AccessToken);
         }
 
         public async Task<bool> LoadPosts()
@@ -58,81 +81,96 @@ namespace MicroBlog
             return true;
         }
 
-        public Post GetBySlug(string slug)
+        public override IEnumerable<Post> Drafts
         {
-            return AllPosts.FirstOrDefault(s => s.Slug.Equals(slug, StringComparison.OrdinalIgnoreCase));
+            get
+            {
+                return _posts.Where(p => p.IsDraft).OrderByDescending(p => p.Date);
+            }
         }
 
-        public Post GetDraftBySlug(string slug)
+        public override Stream GetMedia(string path)
         {
             throw new NotImplementedException();
         }
 
-        public Post GetByFileName(string fileName)
+        public override IEnumerable<Post> AllPosts
         {
-            throw new NotImplementedException();
+            get
+            {
+                return _posts.Where(p => !p.IsDraft).OrderByDescending(p => p.Date);
+            }
         }
 
-        public IEnumerable<string> Categories()
-        {
-            return _posts.Select(c => c.Category).Distinct().OrderBy(c => c);
-        }
-
-        public IEnumerable<Post> AllPosts { get { return _posts.Where(p => !p.IsDraft).OrderByDescending(p => p.Date); } }
-        public void AddOrUpdatePost(Post post)
-        {
-            throw new NotImplementedException();
-        }
     }
-    public class LocalPostRepository : IPostRepository
+    public class LocalPostRepository : PostRepositoryBase
     {
         private readonly Settings _settings;
         private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
-        private readonly IList<Post> _posts;
+        private readonly new ConcurrentDictionary<string, Post> _posts;
 
         public LocalPostRepository(IOptions<Settings> settings)
         {
             _settings = settings.Value;
             Logger.Info("Using Local source for posts");
-            _posts = new List<Post>();
+            _posts = new ConcurrentDictionary<string, Post>();
             ScanPosts();
+
+            var rootPath = Path.Combine(_settings.ContentPath, "Posts");
+            var watcher = new FileSystemWatcher(rootPath);
+
+
+            watcher.IncludeSubdirectories = true;
+            watcher.Deleted += (sender, args) =>
+            {
+                Logger.Info($"File deleted: {args.FullPath}");
+                Post oldPost;
+                _posts.TryRemove(args.FullPath, out oldPost);                
+            };
+
+            watcher.Created += (sender, args) =>
+            {
+                Logger.Info($"File created: {args.FullPath}");
+            };
+
+            watcher.Changed += (sender, args) =>
+            {
+                Logger.Info($"File changed: {args.FullPath}");
+                var content = File.ReadAllText(args.FullPath);
+                _posts[args.FullPath] = new Post(args.FullPath, content, File.GetCreationTime(args.FullPath));
+            };
+
+            watcher.EnableRaisingEvents = true;
+            Logger.Info($"Watching for changes: {rootPath}");
         }
 
         private void ScanPosts()
         {
-            Logger.Info("Looking for posts in {0}", Path.Combine(_settings.ContentPath, "Posts"));
-            foreach (var f in Directory.GetFiles(Path.Combine(_settings.ContentPath, "Posts")))
+            var rootPath = Path.Combine(_settings.ContentPath, "Posts");
+            Logger.Info("Looking for posts in {0}", rootPath);
+            foreach (var f in Directory.GetFiles(rootPath))
             {
                 var content = File.ReadAllText(f);
-                _posts.Add(new Post(f, content, File.GetCreationTime(f)));
+                _posts[f] = new Post(f, content, File.GetCreationTime(f));
             }
         }
 
-        public IEnumerable<string> Categories()
+        public override IEnumerable<Post> Drafts { get { return _posts.Values.Where(p => p.IsDraft).OrderByDescending(p => p.Date); } }
+
+        public override Stream GetMedia(string path)
         {
-            return _posts.Select(c => c.Category).Distinct().OrderBy(c => c);
+            try
+            {
+                return File.Open(Path.Combine(_settings.ContentPath,"media", path), FileMode.Open, FileAccess.Read);
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, $"Error reading media {path}");
+                return null;
+            }
         }
 
-        public Post GetBySlug(string slug)
-        {
-            return AllPosts.FirstOrDefault(s => s.Slug.Equals(slug, StringComparison.OrdinalIgnoreCase));
-        }
+        public override IEnumerable<Post> AllPosts { get { return _posts.Values.Where(p => !p.IsDraft).OrderByDescending(p => p.Date); } }
 
-        public Post GetDraftBySlug(string slug)
-        {
-            throw new NotImplementedException();
-        }
-
-        public Post GetByFileName(string fileName)
-        {
-            throw new NotImplementedException();
-        }
-
-        public IEnumerable<Post> AllPosts { get { return _posts.OrderByDescending(p => p.Date); } }
-
-        public void AddOrUpdatePost(Post post)
-        {
-            throw new NotImplementedException();
-        }
     }
 }

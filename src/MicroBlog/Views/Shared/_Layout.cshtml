@@ -11,6 +11,7 @@
 
         <link href="~/css/site.css" rel="stylesheet" />
         <link href="~/lib/pure/pure-min.css" rel="stylesheet" />
+        <link href="~/css/default.css" rel="stylesheet" />
     </environment>
     <environment names="Staging,Production">
         <link href="~/css/site.min.css" rel="stylesheet" />
@@ -48,9 +49,12 @@
         </div>        
     </div>
 
-    <environment names="Development">
-        <script src="js/site.js"></script>
-    </environment>
+<environment names="Development">
+    <script src="~/lib/jquery/dist/jquery.js"></script>
+    <script src="~/js/highlight.pack.js"></script>
+    <script src="~/js/site.js"></script>
+
+</environment>
     <environment names="Staging,Production">
         <script src="js/site.min.js"></script>
     </environment>

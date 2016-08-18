@@ -4,6 +4,8 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 
+using Markdig;
+
 using NLog;
 
 namespace MicroBlog
@@ -58,7 +60,7 @@ namespace MicroBlog
             {
                 Date = modified;
             }
-            IsDraft = (Metadata.TryGetValue("Date", out value) ? value : "").Equals("draft", StringComparison.OrdinalIgnoreCase);
+            IsDraft = (Metadata.TryGetValue("Status", out value) ? value : "").Equals("draft", StringComparison.OrdinalIgnoreCase);
         }
 
         public Dictionary<string, string> Metadata { get; private set; }
@@ -68,21 +70,7 @@ namespace MicroBlog
         public string Category { get; private set; }
         public DateTimeOffset Date { get; private set; }
         public bool IsDraft { get; private set; }
-        public string Markdown { get; private set; }
-
-        private string _html;
-
-        public string Html
-        {
-            get
-            {
-                if (string.IsNullOrEmpty(_html))
-                {
-                    _html = Markdig.Markdown.ToHtml(Markdown);
-                }
-                return _html;
-            }
-        }
+        public string Markdown { get; private set; }       
 
         private string _hash;
         public string Hash

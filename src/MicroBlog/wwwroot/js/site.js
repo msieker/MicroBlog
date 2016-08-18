@@ -1,5 +1,4 @@
-﻿(function (window, document) {
-
+﻿$(function () {
     var layout = document.getElementById('layout'),
         menu = document.getElementById('menu'),
         menuLink = document.getElementById('menuLink');
@@ -32,4 +31,7 @@
         toggleClass(menuLink, active);
     };
 
-}(this, this.document));
+    $('pre code').each(function (i, block) {
+        hljs.highlightBlock(block);
+    });
+});

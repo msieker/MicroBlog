@@ -34,7 +34,7 @@ namespace MicroBlog
         {
             // Add framework services.
             services.AddMvc();
-
+            services.AddMemoryCache();
             services.AddOptions();
             services.Configure<Settings>(Configuration.GetSection("settings"));
             services.Configure<DropboxSettings>(Configuration.GetSection("Dropbox"));

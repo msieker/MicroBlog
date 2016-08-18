@@ -18,6 +18,16 @@ namespace MicroBlog.Controllers
             _postRepository = postRepository;
         }
 
+        [Route("draft/{slug}")]
+        public IActionResult ViewDraftPost(string slug)
+        {
+            var post = _postRepository.GetDraftBySlug(slug);
+            if (post == null)
+            {
+                return NotFound();
+            }
+            return View("ViewPost", post);
+        }
         [Route("{slug}")]
         public IActionResult ViewPost(string slug)
         {
