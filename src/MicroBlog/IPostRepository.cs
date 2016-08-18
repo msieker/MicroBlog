@@ -56,12 +56,12 @@ namespace MicroBlog
     public class DropboxPostRepository : PostRepositoryBase
     {
         private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
-        private readonly ConcurrentBag<Post> _posts;
+        private readonly ConcurrentDictionary<string, Post> _posts;
         private readonly DropboxClient _client;
 
         public DropboxPostRepository(IOptions<DropboxSettings> dropboxSettings)
         {
-            _posts = new ConcurrentBag<Post>();
+            _posts = new ConcurrentDictionary<string, Post>();
             _client = new DropboxClient(dropboxSettings.Value.AccessToken);
         }
 
@@ -79,7 +79,7 @@ namespace MicroBlog
                 var response = await _client.Files.DownloadAsync(metadata.PathLower);
                 var content = await response.GetContentAsStringAsync();
                 var post = new Post(metadata.Name, content, metadata.ServerModified);
-                _posts.Add(post);
+                _posts[metadata.PathLower] = post;
             }
 
             return true;
@@ -89,12 +89,12 @@ namespace MicroBlog
         {
             get
             {
-                return _posts.Where(p => p.IsDraft).OrderByDescending(p => p.Date);
+                return _posts.Values.Where(p => p.IsDraft).OrderByDescending(p => p.Date);
             }
         }
 
         public override async Task Refresh()
-        {
+        {            
             await LoadPosts();
         }
 
@@ -117,7 +117,7 @@ namespace MicroBlog
         {
             get
             {
-                return _posts.Where(p => !p.IsDraft).OrderByDescending(p => p.Date);
+                return _posts.Values.Where(p => !p.IsDraft).OrderByDescending(p => p.Date);
             }
         }
 

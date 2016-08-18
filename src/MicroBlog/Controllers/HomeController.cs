@@ -1,8 +1,10 @@
 ﻿using System;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
+using Microsoft.AspNetCore.Hosting.Internal;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.Caching.Memory;
@@ -22,6 +24,20 @@ namespace MicroBlog.Controllers
             _settings = settings.Value;
         }
 
+        [Route("webhook")]
+        public async Task<IActionResult> Webhook(string challenge)
+        {
+            if (!string.IsNullOrEmpty(challenge))
+            {
+                return Content(challenge);
+            }
+            else
+            {
+                Task.Run(() => _postRepository.Refresh());
+                return NoContent();
+            }
+        }
+
         [Route("media/{*mediaPath}")]
         public async Task<IActionResult> Media(string mediaPath)
         {
@@ -33,6 +49,7 @@ namespace MicroBlog.Controllers
                 {
                     return NotFound();
                 }
+                _cache.Set("media-" + mediaPath, content);
             }
             string contentType;
             new FileExtensionContentTypeProvider().TryGetContentType(mediaPath, out contentType);
