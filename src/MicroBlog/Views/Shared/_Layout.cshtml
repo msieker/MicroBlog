@@ -17,28 +17,42 @@
     </environment>
 </head>
 <body>
-    <div class="body-content">
-        <header>
-            <h1>@settings.Value.BlogTitle</h1>
-            <div class="pure-menu-horizontal top-menu">
+    <div id="layout">
+        <a href="#menu" id="menuLink" class="menu-link">
+            <!-- Hamburger icon -->
+            <span></span>
+        </a>
+        <nav id="menu">
+            <div class="pure-menu">
+                <span class="pure-menu-heading">Categories</span>
                 <ul class="pure-menu-list">
                     @foreach (var c in PostRepository.Categories())
-            {
-                        <li class="pure-menu-item">@c</li>
+                    {
+                        <li class="pure-menu-item @((string)ViewContext.RouteData.Values["category"] == c ? "pure-menu-selected" : "")">
+                            <a class="pure-menu-link" asp-controller="Home" asp-action="Index" asp-route-page="" asp-route-category="@c">@c</a>
+                        </li>
                     }
                 </ul>
             </div>
 
-        </header>
-
-        @RenderBody()
+        </nav>
+        <div id="main">
+            <header class="header">
+                <h1>
+                    <a asp-controller="Home" asp-action="Index" asp-route-category="" asp-route-page="">@settings.Value.BlogTitle</a>
+                </h1>
+            </header>
+            <div class="content">
+                @RenderBody()
+            </div>
+        </div>        
     </div>
 
     <environment names="Development">
-
+        <script src="js/site.js"></script>
     </environment>
     <environment names="Staging,Production">
-
+        <script src="js/site.min.js"></script>
     </environment>
 
     <script id="dsq-count-scr" src="//@(settings.Value.DisqusShortName).disqus.com/count.js" async></script>
