@@ -95,7 +95,7 @@ namespace MicroBlog
 
         public override async Task Refresh()
         {
-            throw new NotImplementedException();
+            await LoadPosts();
         }
 
         public override async Task<byte[]> GetMedia(string path)
