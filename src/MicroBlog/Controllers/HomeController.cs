@@ -1,10 +1,8 @@
 ﻿using System;
-using System.IO;
+using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 
-using Microsoft.AspNetCore.Hosting.Internal;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.Caching.Memory;
@@ -12,6 +10,14 @@ using Microsoft.Extensions.Options;
 
 namespace MicroBlog.Controllers
 {
+    public class PostListModel
+    {
+        public IEnumerable<Post> Posts { get; set; }
+        public bool HasNextPage { get; set; }
+        public bool HasPreviousPage { get; set; }
+        public int PageCount { get; set; }
+        public int CurrentPage { get; set; }
+    }
     public class HomeController : Controller
     {
         private readonly IMemoryCache _cache;
@@ -62,13 +68,8 @@ namespace MicroBlog.Controllers
         public IActionResult Drafts(int? pageNum)
         {
             var posts = _postRepository.Drafts;
-            if (pageNum.HasValue)
-            {
-                posts = posts.Skip(pageNum.Value * _settings.PageSize);
-            }
-
-            posts = posts.Take(_settings.PageSize);
-            return View("Index", posts);
+            var model = MakeModelFromPosts(null, pageNum, posts);
+            return View("Index", model);
         }
 
         [Route("")]
@@ -78,19 +79,32 @@ namespace MicroBlog.Controllers
         public IActionResult Index(string category, int? pageNum)
         {
             var posts = _postRepository.AllPosts;
+            var model = MakeModelFromPosts(category, pageNum, posts);
+            return View(model);
+        }
+
+        private PostListModel MakeModelFromPosts(string category, int? pageNum, IList<Post> posts)
+        {
+            var model = new PostListModel();
+            var postCount = posts.Count();
+            model.PageCount = (int)Math.Ceiling(postCount / (float)_settings.PageSize);
+            model.CurrentPage = pageNum ?? 1;
+
+            model.HasPreviousPage = model.CurrentPage > 1;
+            model.HasNextPage = model.CurrentPage < model.PageCount;
 
             if (!string.IsNullOrEmpty(category))
             {
-                posts = posts.Where(p => p.Category.Equals(category, StringComparison.OrdinalIgnoreCase));
+                posts = posts.Where(p => p.Category.Equals(category, StringComparison.OrdinalIgnoreCase)).ToList();
             }
 
             if (pageNum.HasValue)
             {
-                posts = posts.Skip(pageNum.Value * _settings.PageSize);
+                posts = posts.Skip((pageNum.Value - 1) * _settings.PageSize).ToList();
             }
 
-            posts = posts.Take(_settings.PageSize);
-            return View(posts);
+            model.Posts = posts.Take(_settings.PageSize).ToList();
+            return model;
         }
     }
 }

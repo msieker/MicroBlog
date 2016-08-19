@@ -20,18 +20,18 @@ namespace MicroBlog
         Post GetBySlug(string slug);
         Post GetDraftBySlug(string slug);
 
-        IEnumerable<string> Categories();
+        IList<string> Categories();
 
-        IEnumerable<Post> AllPosts { get; }
-        IEnumerable<Post> Drafts { get; }
+        IList<Post> AllPosts { get; }
+        IList<Post> Drafts { get; }
 
         Task<byte[]> GetMedia(string path);
     }
 
     public abstract class PostRepositoryBase : IPostRepository
     {
-        public abstract IEnumerable<Post> AllPosts { get; }
-        public abstract IEnumerable<Post> Drafts { get; }
+        public abstract IList<Post> AllPosts { get; }
+        public abstract IList<Post> Drafts { get; }
 
         public abstract Task Refresh();
 
@@ -47,9 +47,9 @@ namespace MicroBlog
 
         public abstract Task<byte[]> GetMedia(string path);
 
-        public IEnumerable<string> Categories()
+        public IList<string> Categories()
         {
-            return AllPosts.Select(c => c.Category).Distinct().OrderBy(c => c);
+            return AllPosts.Select(c => c.Category).Distinct().OrderBy(c => c).ToList();
         }
     }
 
@@ -58,6 +58,7 @@ namespace MicroBlog
         private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
         private readonly ConcurrentDictionary<string, Post> _posts;
         private readonly DropboxClient _client;
+        private string _cursor;
 
         public DropboxPostRepository(IOptions<DropboxSettings> dropboxSettings)
         {
@@ -67,35 +68,67 @@ namespace MicroBlog
 
         public async Task<bool> LoadPosts()
         {
+            Logger.Info($"Loading all files from Dropbox");
             var files = await _client.Files.ListFolderAsync("/posts");
-
+            _cursor = files.Cursor;
             foreach (var entry in files.Entries)
             {
                 if (!entry.IsFile || !entry.Name.EndsWith(".md", StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
-                var metadata = entry.AsFile;
-                var response = await _client.Files.DownloadAsync(metadata.PathLower);
-                var content = await response.GetContentAsStringAsync();
-                var post = new Post(metadata.Name, content, metadata.ServerModified);
-                _posts[metadata.PathLower] = post;
+                Logger.Info($"Processing {entry.PathLower}");
+                var post = await MakePostFromEntry(entry);
+                _posts[post.File] = post;
             }
 
             return true;
         }
 
-        public override IEnumerable<Post> Drafts
+        private async Task<Post> MakePostFromEntry(Metadata entry)
+        {
+            var metadata = entry.AsFile;
+            var response = await _client.Files.DownloadAsync(metadata.PathLower);
+            var content = await response.GetContentAsStringAsync();
+            return new Post(metadata.PathLower, content, metadata.ServerModified);
+        }
+
+        public override IList<Post> Drafts
         {
             get
             {
-                return _posts.Values.Where(p => p.IsDraft).OrderByDescending(p => p.Date);
+                return _posts.Values.Where(p => p.IsDraft).OrderByDescending(p => p.Date).ToList();
             }
         }
 
         public override async Task Refresh()
-        {            
-            await LoadPosts();
+        {
+            if (string.IsNullOrEmpty(_cursor))
+            {
+                await LoadPosts();
+                return;
+            }
+            Logger.Info($"Checking for updates");
+            var changes = await _client.Files.ListFolderContinueAsync(_cursor);
+            foreach (var entry in changes.Entries)
+            {
+                if (!entry.PathLower.EndsWith(".md", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                if (entry.IsDeleted)
+                {
+                    Logger.Info($"Deleting {entry.PathLower}");
+                    Post removedPost;
+                    _posts.TryRemove(entry.PathLower, out removedPost);
+                }
+                else if (entry.IsFile)
+                {
+                    Logger.Info($"Processing {entry.PathLower}");
+                    var post = await MakePostFromEntry(entry);
+                    _posts[post.File] = post;
+                }
+            }
+            _cursor = changes.Cursor;
         }
 
         public override async Task<byte[]> GetMedia(string path)
@@ -104,20 +137,20 @@ namespace MicroBlog
             {
                 var file = await _client.Files.DownloadAsync("/media/" + path);
                 var contents = await file.GetContentAsByteArrayAsync();
-
                 return contents;
             }
             catch (ApiException<DownloadError> ex)
             {
+                Logger.Error(ex, "Exception from Dropbox when getting media");
                 return null;
             }
         }
 
-        public override IEnumerable<Post> AllPosts
+        public override IList<Post> AllPosts
         {
             get
             {
-                return _posts.Values.Where(p => !p.IsDraft).OrderByDescending(p => p.Date);
+                return _posts.Values.Where(p => !p.IsDraft).OrderByDescending(p => p.Date).ToList();
             }
         }
 
@@ -174,7 +207,7 @@ namespace MicroBlog
             }
         }
 
-        public override IEnumerable<Post> Drafts { get { return _posts.Values.Where(p => p.IsDraft).OrderByDescending(p => p.Date); } }
+        public override IList<Post> Drafts { get { return _posts.Values.Where(p => p.IsDraft).OrderByDescending(p => p.Date).ToList(); } }
 
         public override Task Refresh()
         {
@@ -201,7 +234,7 @@ namespace MicroBlog
             }
         }
 
-        public override IEnumerable<Post> AllPosts { get { return _posts.Values.Where(p => !p.IsDraft).OrderByDescending(p => p.Date); } }
+        public override IList<Post> AllPosts { get { return _posts.Values.Where(p => !p.IsDraft).OrderByDescending(p => p.Date).ToList(); } }
 
     }
 }

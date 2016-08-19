@@ -1,6 +1,6 @@
-﻿@model IEnumerable<Post>
+﻿@model MicroBlog.Controllers.PostListModel
 
-@foreach (var p in Model)
+@foreach (var p in Model.Posts)
 {
     @await Component.InvokeAsync("Post", new { Post = p, ShowComments = false })
 }
